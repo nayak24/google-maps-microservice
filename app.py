@@ -64,10 +64,10 @@ def get_place_details(place_id):
         return {}
 
 # get routes from google directions API and check for accessibility along the way
-def get_accessible_routes(origin, destination):
+def get_accessible_routes(origin, destination, mode="walking"):
     directions_url = (
-        f"https://maps.googleapis.com/maps/api/directions/json?origin={origin}"
-        f"&destination={destination}&mode=walking&key={GOOGLE_MAPS_API_KEY}"
+        f"https://maps.googleapis.com/maps/api/directions/json?"
+        f"origin={origin}&destination={destination}&mode={mode}&key={GOOGLE_MAPS_API_KEY}"
     )
 
     try:
@@ -97,9 +97,10 @@ def routes():
     if request.method == 'GET':
         origin = request.args.get('origin')
         destination = request.args.get('destination')
+        mode = request.args.get('mode')
 
         if not origin or not destination:
-            return jsonify({"error": "Please provide both origin and destination parameters in the URL."}), 400
+            return jsonify({"error": "Please provide both origin, destination, and direction mode parameters in the URL."}), 400
 
         routes = get_accessible_routes(origin, destination)
 
@@ -112,16 +113,17 @@ def routes():
         data = request.json
         origin = data.get('origin')
         destination = data.get('destination')
+        mode = data.get('mode', 'walking')
 
         if not origin or not destination:
             return jsonify({"error": "Origin and destination are required."}), 400
 
-        routes = get_accessible_routes(origin, destination)
+        routes = get_accessible_routes(origin, destination, mode)
 
         if routes:
             return jsonify({"routes": routes})
         else:
-            return jsonify({"error": "Error retrieving routes."}), 500
+            return jsonify({"error": "Error retrieving {mode} routes."}), 500
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
