@@ -92,21 +92,36 @@ def get_accessible_routes(origin, destination):
         return None
 
 # API endpoint to get accessible routes
-@app.route('/routes', methods=['POST'])
+@app.route('/routes', methods=['GET', 'POST'])
 def routes():
-    data = request.json
-    origin = data.get('origin')
-    destination = data.get('destination')
+    if request.method == 'GET':
+        origin = request.args.get('origin')
+        destination = request.args.get('destination')
 
-    if not origin or not destination:
-        return jsonify({"error": "Origin and destination are required."}), 400
+        if not origin or not destination:
+            return jsonify({"error": "Please provide both origin and destination parameters in the URL."}), 400
 
-    routes = get_accessible_routes(origin, destination)
+        routes = get_accessible_routes(origin, destination)
 
-    if routes:
-        return jsonify({"routes": routes})
-    else:
-        return jsonify({"error": "Error retrieving routes."}), 500
+        if routes:
+            return jsonify({"routes": routes})
+        else:
+            return jsonify({"error": "Error retrieving routes."}), 500
+
+    if request.method == 'POST':
+        data = request.json
+        origin = data.get('origin')
+        destination = data.get('destination')
+
+        if not origin or not destination:
+            return jsonify({"error": "Origin and destination are required."}), 400
+
+        routes = get_accessible_routes(origin, destination)
+
+        if routes:
+            return jsonify({"routes": routes})
+        else:
+            return jsonify({"error": "Error retrieving routes."}), 500
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
