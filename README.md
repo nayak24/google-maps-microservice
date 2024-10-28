@@ -7,7 +7,7 @@ Author: Anish Nayak (an3270)
 Team: CloudGPT
 
 ## API Usage:
-API Root: http://18.189.170.8:5000/
+API Root: http://3.133.129.121:5000/
 
 ### Calling Endpoint
 
@@ -20,7 +20,7 @@ async function getAccessibleRoutes() {
     const destination = "200 Central Park W, New York, NY";
     const mode = "transit";
 
-    const url = `http://18.189.170.8:5000/routes`;
+    const url = `http://3.133.129.121:5000/routes`;
 
     try {
         const response = await fetch(url, {
@@ -50,7 +50,7 @@ async function getAccessibleRoutes() {
 
 Optionally, you can use a link that contains the origin, destination, and mode of transport like the following:
 
-http://18.189.170.8:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destination=200+Central+Park+W,+New+York,+NY&mode=transit
+http://3.133.129.121:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destination=200+Central+Park+W,+New+York,+NY&mode=transit
 
 
 
