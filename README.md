@@ -50,6 +50,8 @@ async function getAccessibleRoutes() {
 }
 ```
 
+The routesData.routes array will contain multiple routes, which can be processed one by one in the frontend.
+
 Optionally, you can run a curl command like the following:
 ```
 curl -X POST http://3.133.129.121:5000/routes \
