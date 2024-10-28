@@ -40,7 +40,9 @@ async function getAccessibleRoutes() {
         }
 
         const routesData = await response.json();
-        console.log(routesData);
+        routesData.routes.forEach((route, index) => {
+                    console.log(`Route ${index + 1}:`, route);
+                });
 
     } catch (error) {
         console.error('There was a problem with the fetch operation:', error);
@@ -48,7 +50,18 @@ async function getAccessibleRoutes() {
 }
 ```
 
-Optionally, you can use a link that contains the origin, destination, and mode of transport like the following:
+Optionally, you can run a curl command like the following:
+```
+curl -X POST http://3.133.129.121:5000/routes \
+-H "Content-Type: application/json" \
+-d '{
+  "origin": "116th and Broadway, New York, NY",
+  "destination": "200 Central Park W, New York, NY",
+  "mode": "transit"
+}'
+```
+
+Or use a link that contains the origin, destination, and mode of transport like the following:
 
 http://3.133.129.121:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destination=200+Central+Park+W,+New+York,+NY&mode=transit
 
