@@ -99,7 +99,7 @@ def get_place_details(place_id):
 def get_accessible_routes(origin, destination, mode="walking"):
     existing_route = Route.query.filter_by(origin=origin, destination=destination, mode=mode).first()
     if existing_route:
-        return jsonify({"routes": existing_route.route_data})
+        return json.loads(existing_route.route_data)
     
     directions_url = (
         f"https://maps.googleapis.com/maps/api/directions/json?"
