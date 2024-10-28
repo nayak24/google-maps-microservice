@@ -4,11 +4,15 @@ charset-normalizer==3.3.2
 click==8.1.7
 Flask==3.0.3
 Flask-Cors==5.0.0
+Flask-SQLAlchemy==3.1.1
 idna==3.10
 itsdangerous==2.2.0
 Jinja2==3.1.4
 MarkupSafe==2.1.5
+mysqlclient @ file:///Users/cbousseau/work/recipes/ci_py311/mysqlclient_1677999649982/work
 python-dotenv==1.0.1
 requests==2.32.3
+SQLAlchemy==2.0.36
+typing_extensions==4.12.2
 urllib3==2.2.3
 Werkzeug==3.0.4
