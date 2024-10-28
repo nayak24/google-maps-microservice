@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import requests
+import json
 import os
 from dotenv import load_dotenv
 
@@ -9,6 +11,24 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": ["http://127.0.0.1:5500"]}})
 GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
+
+# db config
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+class Route(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    origin = db.Column(db.String(256), nullable=False)
+    destination = db.Column(db.String(256), nullable=False)
+    mode = db.Column(db.String(50), nullable=False)
+    route_data = db.Column(db.Text, nullable=False)
+
+    __table_args__ = (db.UniqueConstraint('origin', 'destination', 'mode', name='_origin_destination_mode_uc'),)
+
+with app.app_context():
+    db.create_all()
 
 # call google places API to check for accessible facilities near given location
 def find_accessible_places(lat, lng, radius=200):
@@ -77,25 +97,39 @@ def get_place_details(place_id):
 
 # get routes from google directions API and check for accessibility along the way
 def get_accessible_routes(origin, destination, mode="walking"):
+    existing_route = Route.query.filter_by(origin=origin, destination=destination, mode=mode).first()
+    if existing_route:
+        return jsonify({"routes": existing_route.route_data})
+    
     directions_url = (
         f"https://maps.googleapis.com/maps/api/directions/json?"
-        f"origin={origin}&destination={destination}&mode={mode}&key={GOOGLE_MAPS_API_KEY}"
+        f"origin={origin}&destination={destination}&mode={mode}&alternatives=true&key={GOOGLE_MAPS_API_KEY}"
     )
 
     try:
         response = requests.get(directions_url)
         routes = response.json().get('routes', [])
+
+        if routes:
+            new_route = Route(
+                origin=origin,
+                destination=destination,
+                mode=mode,
+                route_data=json.dumps(routes)
+            )
+            db.session.add(new_route)
+            db.session.commit()
         
-        for route in routes:
-            for leg in route.get('legs', []):
-                for step in leg.get('steps', []):
-                    lat = step['end_location']['lat']
-                    lng = step['end_location']['lng']
-                    
-                    # Find accessible places near each step
-                    accessible_places = find_accessible_places(lat, lng)
-                    if accessible_places:
-                        step['accessible_places'] = accessible_places  # add accessible places to step
+            for route in routes:
+                for leg in route.get('legs', []):
+                    for step in leg.get('steps', []):
+                        lat = step['end_location']['lat']
+                        lng = step['end_location']['lng']
+                        
+                        # Find accessible places near each step
+                        accessible_places = find_accessible_places(lat, lng)
+                        if accessible_places:
+                            step['accessible_places'] = accessible_places  # add accessible places to step
 
         return routes
 
