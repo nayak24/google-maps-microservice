@@ -67,6 +67,14 @@ Or use a link that contains the origin, destination, and mode of transport like 
 
 http://3.145.179.175:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destination=200+Central+Park+W,+New+York,+NY&mode=transit
 
+or trying to get a paginated page based on the page number and limit, as follows: increase the page number by 1 to get the next page and decrease the limit by 1 to get the previous page and limit.
+
+http://3.145.179.175:5000/viewed_routes/page/1?limit=10
+
+or
+
+http://127.0.0.1:5000/viewed_routes/page/1
+
 
 
 ### Example Data
