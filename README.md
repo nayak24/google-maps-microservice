@@ -73,7 +73,7 @@ http://3.145.179.175:5000/viewed_routes/page/1?limit=10
 
 or
 
-http://127.0.0.1:5000/viewed_routes/page/1
+http://3.145.179.175:5000/viewed_routes/page/1
 
 
 
