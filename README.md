@@ -7,7 +7,7 @@ Author: Anish Nayak (an3270)
 Team: CloudGPT
 
 ## API Usage:
-API Root: http://3.133.129.121:5000/
+API Root: http://3.145.179.175:5000/
 
 ### Calling Endpoint
 
@@ -20,7 +20,7 @@ async function getAccessibleRoutes() {
     const destination = "200 Central Park W, New York, NY";
     const mode = "transit";
 
-    const url = `http://3.133.129.121:5000/routes`;
+    const url = `http://3.145.179.175:5000/routes`;
 
     try {
         const response = await fetch(url, {
@@ -54,7 +54,7 @@ The routesData.routes array will contain multiple routes, which can be processed
 
 Optionally, you can run a curl command like the following:
 ```
-curl -X POST http://3.133.129.121:5000/routes \
+curl -X POST http://3.145.179.175:5000/routes \
 -H "Content-Type: application/json" \
 -d '{
   "origin": "116th and Broadway, New York, NY",
@@ -65,7 +65,7 @@ curl -X POST http://3.133.129.121:5000/routes \
 
 Or use a link that contains the origin, destination, and mode of transport like the following:
 
-http://3.133.129.121:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destination=200+Central+Park+W,+New+York,+NY&mode=transit
+http://3.145.179.175:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destination=200+Central+Park+W,+New+York,+NY&mode=transit
 
 
 
