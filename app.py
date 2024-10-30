@@ -1,37 +1,64 @@
-from flask import Flask, request, jsonify, render_template
-from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS
+from sqlalchemy.orm import Session, sessionmaker, declarative_base
+from sqlalchemy import create_engine, Column, Integer, String, Text, UniqueConstraint
+from fastapi import FastAPI, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy_paginator import Paginator
 import requests
 import json
 import os
 from dotenv import load_dotenv
+import logging
+import time
+import uvicorn
 
 load_dotenv()
 
-curr_page = 1
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["http://127.0.0.1:5500"]}})
+GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+Base = declarative_base()
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+app = FastAPI()
+
+
+origins = ["http://127.0.0.1:5500"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
 
-# db config
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-db = SQLAlchemy(app)
+class Route(Base):
+    __tablename__ = 'route'
+    id = Column(Integer, primary_key=True)
+    origin = Column(String(256), nullable=False)
+    destination = Column(String(256), nullable=False)
+    mode = Column(String(50), nullable=False)
+    route_data = Column(Text, nullable=False)
 
-
-class Route(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    origin = db.Column(db.String(256), nullable=False)
-    destination = db.Column(db.String(256), nullable=False)
-    mode = db.Column(db.String(50), nullable=False)
-    route_data = db.Column(db.Text, nullable=False)
-
-    __table_args__ = (db.UniqueConstraint('origin', 'destination', 'mode', name='_origin_destination_mode_uc'),)
+    __table_args__ = (UniqueConstraint('origin', 'destination', 'mode', name='_origin_destination_mode_uc'),)
 
 
-with app.app_context():
-    db.create_all()
+Base.metadata.create_all(bind=engine)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 # call google places API to check for accessible facilities near given location
@@ -106,8 +133,8 @@ def get_place_details(place_id):
 
 
 # get routes from google directions API and check for accessibility along the way
-def get_accessible_routes(origin, destination, mode="walking"):
-    existing_route = Route.query.filter_by(origin=origin, destination=destination, mode=mode).first()
+def get_accessible_routes(db: Session, origin, destination, mode="walking"):
+    existing_route = db.query(Route).filter_by(origin=origin, destination=destination, mode=mode).first()
     if existing_route:
         return json.loads(existing_route.route_data)
 
@@ -127,8 +154,8 @@ def get_accessible_routes(origin, destination, mode="walking"):
                 mode=mode,
                 route_data=json.dumps(routes)
             )
-            db.session.add(new_route)
-            db.session.commit()
+            db.add(new_route)
+            db.commit()
 
             for route in routes:
                 for leg in route.get('legs', []):
@@ -147,74 +174,83 @@ def get_accessible_routes(origin, destination, mode="walking"):
         print(f"Error fetching directions: {e}")
         return None
 
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
 
-@app.route('/viewed_routes/page/<int:page>', methods=['GET', 'POST'])
-def viewed_routes(page):
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logger.info(f"Request: {request.method} {request.url}")
+
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+
+    logger.info(f"Response status: {response.status_code} | Time: {process_time:.4f}s")
+    return response
+
+
+@app.get("/viewed_routes/page/{page}")
+def viewed_routes(page: int, limit: int = 10, db: Session = Depends(get_db)):
     if page < 1:
-        return jsonify({"error": "Invalid page number."}), 400
+        return JSONResponse(content={"error": "Invalid page number."}, status_code=400)
+
+    offset = (page - 1) * limit
+
+    routes_query = db.query(Route).offset(offset).limit(limit).all()
     
-    limit = request.args.get('limit', 10, type=int) 
-    routes_query = Route.query.paginate(page=page, per_page=limit, error_out=False)
+    total_items = db.query(Route).count()
 
-    if not routes_query.items:
-        return jsonify({"error": "No routes found."}), 404
+    total_pages = (total_items + limit - 1) // limit
 
-    route_data_res = []
-    for route in routes_query.items:
-        route_data_res.append({
+    if not routes_query:
+        return JSONResponse({"error": "No routes found."}, status_code=404)
+
+    route_data_res = [
+        {
             'id': route.id,
             'origin': route.origin,
             'destination': route.destination,
-        })
+        }
+        for route in routes_query
+    ]
 
     pagination_info = {
-        'totalItems': routes_query.total,
+        'totalItems': total_items,
         'currentPage': page,
-        'totalPages': routes_query.pages,
+        'totalPages': total_pages,
         'limit': limit
     }
 
-    return jsonify({
-        'routes': route_data_res,
-        'pagination': pagination_info
-    }), 200
+    return JSONResponse(content={"routes": route_data_res, "pagination": pagination_info})
 
 
-# API endpoint to get accessible routes
-@app.route('/routes', methods=['GET', 'POST'])
-def routes():
-    if request.method == 'GET':
-        origin = request.args.get('origin')
-        destination = request.args.get('destination')
-        mode = request.args.get('mode')
+@app.get("/routes")
+async def routes_get(origin: str, destination: str, mode: str = "walking", db: Session = Depends(get_db)):
+    if not origin or not destination:
+        return JSONResponse(content={"error": "Origin and destination are required."}, status_code=400)
 
-        if not origin or not destination:
-            return jsonify(
-                {"error": "Please provide both origin, destination, and direction mode parameters in the URL."}), 400
+    routes = get_accessible_routes(db, origin, destination, mode)
+    if routes:
+        return JSONResponse(content={"routes": routes}, status_code=200)
+    else:
+        return JSONResponse(content={"error": "Error retrieving routes."}, status_code=500)
+    
+@app.post("/routes")
+async def routes_post(data: dict, db: Session = Depends(get_db)):
+    origin = data.get('origin')
+    destination = data.get('destination')
+    mode = data.get('mode', 'walking')
 
-        routes = get_accessible_routes(origin, destination, mode)
-
-        if routes:
-            return jsonify({"routes": routes})
-        else:
-            return jsonify({"error": "Error retrieving routes."}), 500
-
-    if request.method == 'POST':
-        data = request.json
-        origin = data.get('origin')
-        destination = data.get('destination')
-        mode = data.get('mode', 'walking')
-
-        if not origin or not destination:
-            return jsonify({"error": "Origin and destination are required."}), 400
-
-        routes = get_accessible_routes(origin, destination, mode)
-
-        if routes:
-            return jsonify({"routes": routes}), 201
-        else:
-            return jsonify({"error": "Error retrieving {mode} routes."}), 500
-
+    if not origin or not destination:
+        return JSONResponse(content={"error": "Origin and destination are required."}, status_code=400)
+    
+    routes = get_accessible_routes(db, origin, destination, mode)
+    if routes:
+        return JSONResponse(content={"routes": routes}, status_code=201)
+    else:
+        return JSONResponse(content={"error": "Error retrieving routes."}, status_code=500)
+    
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    uvicorn.run(app,host='0.0.0.0', port=5000)
