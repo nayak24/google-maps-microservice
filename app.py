@@ -52,7 +52,6 @@ class Route(Base):
 
 Base.metadata.create_all(bind=engine)
 
-
 def get_db():
     db = SessionLocal()
     try:
@@ -131,7 +130,6 @@ def get_place_details(place_id):
         print(f"Error fetching place details: {e}")
         return {}
 
-
 # get routes from google directions API and check for accessibility along the way
 def get_accessible_routes(db: Session, origin, destination, mode="walking"):
     existing_route = db.query(Route).filter_by(origin=origin, destination=destination, mode=mode).first()
@@ -173,6 +171,22 @@ def get_accessible_routes(db: Session, origin, destination, mode="walking"):
     except requests.RequestException as e:
         print(f"Error fetching directions: {e}")
         return None
+
+def background_process_route(db: Session, origin: str, destination: str, mode: str):
+    routes = get_accessible_routes(db, origin, destination, mode)
+    if routes:
+        new_route = Route(
+            origin = origin,
+            destination = destination,
+            mode = mode,
+            route_data = json.dumps(routes)
+        )
+        db.add(new_route)
+        db.commit()
+        db.refresh(new_route)
+        logger.info(f"Processed route: {new_route.id}")
+    else:
+        logger.error("Error retrieving routes during background processing.")
 
 @app.get("/")
 def read_root():
@@ -252,6 +266,9 @@ async def routes_post(data: dict, db: Session = Depends(get_db)):
     if not origin or not destination:
         return JSONResponse(content={"error": "Origin and destination are required."}, status_code=400)
     
+    #background_tasks.add_task(background_process_route, db, origin, destination, mode)
+    #return JSONResponse(content = {"message": "Request accepted. Processing in the background."}, status_code = 202)
+
     routes = get_accessible_routes(db, origin, destination, mode)
     if routes:
         new_route = Route(
