@@ -254,7 +254,19 @@ async def routes_post(data: dict, db: Session = Depends(get_db)):
     
     routes = get_accessible_routes(db, origin, destination, mode)
     if routes:
-        return JSONResponse(content={"routes": routes, 'links': {"self": f"/routes?origin={origin}&destination={destination}&mode={mode}", "viewed_routes": f"/viewed_routes/page/1?limit=10"}}, status_code=201)
+        new_route = Route(
+            origin = origin,
+            destination = destination,
+            mode = mode,
+            route_data = json.dumps(routes)
+        )
+        db.add(new_route)
+        db.commit()
+        db.refresh(new_route)
+        return JSONResponse(content={"routes": routes, 'links': {"self": f"/routes?origin={origin}&destination={destination}&mode={mode}", "viewed_routes": f"/viewed_routes/page/1?limit=10"}}, 
+        status_code=201,
+        headers = {"Location": f"/routes/{new_route.id}"
+        })
     else:
         return JSONResponse(content={"error": "Error retrieving routes."}, status_code=500)
     
