@@ -219,7 +219,14 @@ def viewed_routes(page: int, limit: int = 10, db: Session = Depends(get_db)):
         'totalItems': total_items,
         'currentPage': page,
         'totalPages': total_pages,
-        'limit': limit
+        'limit': limit,
+        'links': {
+            'self': f'/viewed_routes/page/{page}',
+            'first': f'/viewed_routes/page/1',
+            'last': f'/viewed_routes/page/{total_pages}',
+            'next': f'/viewed_routes/page/{page + 1}' if page < total_pages else None,
+            'prev': f'/viewed_routes/page/{page - 1}' if page > 1 else None
+        }
     }
 
     return JSONResponse(content={"routes": route_data_res, "pagination": pagination_info})
@@ -232,7 +239,7 @@ async def routes_get(origin: str, destination: str, mode: str = "walking", db: S
 
     routes = get_accessible_routes(db, origin, destination, mode)
     if routes:
-        return JSONResponse(content={"routes": routes}, status_code=200)
+        return JSONResponse(content={"routes": routes, 'links': {"self": f"/routes?origin={origin}&destination={destination}&mode={mode}", "viewed_routes": f"/viewed_routes/page/1?limit=10"}}, status_code=200)
     else:
         return JSONResponse(content={"error": "Error retrieving routes."}, status_code=500)
     
@@ -247,7 +254,7 @@ async def routes_post(data: dict, db: Session = Depends(get_db)):
     
     routes = get_accessible_routes(db, origin, destination, mode)
     if routes:
-        return JSONResponse(content={"routes": routes}, status_code=201)
+        return JSONResponse(content={"routes": routes, 'links': {"self": f"/routes?origin={origin}&destination={destination}&mode={mode}", "viewed_routes": f"/viewed_routes/page/1?limit=10"}}, status_code=201)
     else:
         return JSONResponse(content={"error": "Error retrieving routes."}, status_code=500)
     
