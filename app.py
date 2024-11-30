@@ -1,5 +1,5 @@
-from sqlalchemy.orm import Session, sessionmaker, declarative_base
-from sqlalchemy import create_engine, Column, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Session, sessionmaker, declarative_base, relationship
+from sqlalchemy import create_engine, Column, Integer, String, Text, UniqueConstraint, ForeignKey
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -39,6 +39,11 @@ GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+class User(Base):
+    __tablename__ = 'user'
+    id = Column(Integer, primary_key=True)
+    routes = relationship('Route', back_populates='user')
+
 class Route(Base):
     __tablename__ = 'route'
     id = Column(Integer, primary_key=True)
@@ -46,12 +51,14 @@ class Route(Base):
     destination = Column(String(256), nullable=False)
     mode = Column(String(50), nullable=False)
     route_data = Column(Text, nullable=False)
+    user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
-    __table_args__ = (UniqueConstraint('origin', 'destination', 'mode', name='_origin_destination_mode_uc'),)
+    user = relationship('User', back_populates='routes')
 
+    __table_args__ = (UniqueConstraint('origin', 'destination', 'mode', 'user_id', name='_origin_destination_user_uc'),)
 
+Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
-
 
 def get_db():
     db = SessionLocal()
@@ -133,8 +140,14 @@ def get_place_details(place_id):
 
 
 # get routes from google directions API and check for accessibility along the way
-def get_accessible_routes(db: Session, origin, destination, mode="walking"):
-    existing_route = db.query(Route).filter_by(origin=origin, destination=destination, mode=mode).first()
+def get_accessible_routes(db: Session, origin, destination, mode="walking", user_id=None):
+    existing_route = db.query(Route).filter_by(
+        origin=origin,
+        destination=destination,
+        mode=mode,
+        user_id=user_id
+    ).first()
+    
     if existing_route:
         return json.loads(existing_route.route_data)
 
@@ -152,7 +165,8 @@ def get_accessible_routes(db: Session, origin, destination, mode="walking"):
                 origin=origin,
                 destination=destination,
                 mode=mode,
-                route_data=json.dumps(routes)
+                route_data=json.dumps(routes),
+                user_id=user_id
             )
             db.add(new_route)
             db.commit()
@@ -233,13 +247,13 @@ def viewed_routes(page: int, limit: int = 10, db: Session = Depends(get_db)):
 
 
 @app.get("/routes")
-async def routes_get(origin: str, destination: str, mode: str = "walking", db: Session = Depends(get_db)):
-    if not origin or not destination:
-        return JSONResponse(content={"error": "Origin and destination are required."}, status_code=400)
+async def routes_get(origin: str, destination: str, mode: str = "walking", user_id: int = 0, db: Session = Depends(get_db)):
+    if not origin or not destination or not user_id:
+        return JSONResponse(content={"error": "Origin, destination, and user_id are required."}, status_code=400)
 
-    routes = get_accessible_routes(db, origin, destination, mode)
+    routes = get_accessible_routes(db, origin, destination, mode, user_id)
     if routes:
-        return JSONResponse(content={"routes": routes, 'links': {"self": f"/routes?origin={origin}&destination={destination}&mode={mode}", "viewed_routes": f"/viewed_routes/page/1?limit=10"}}, status_code=200)
+        return JSONResponse(content={"routes": routes, 'links': {"self": f"/routes?origin={origin}&destination={destination}&mode={mode}&user_id={user_id}", "viewed_routes": f"/viewed_routes/page/1?limit=10"}}, status_code=200)
     else:
         return JSONResponse(content={"error": "Error retrieving routes."}, status_code=500)
     
@@ -248,16 +262,36 @@ async def routes_post(data: dict, db: Session = Depends(get_db)):
     origin = data.get('origin')
     destination = data.get('destination')
     mode = data.get('mode', 'walking')
+    user_id = data.get('user_id')
 
-    if not origin or not destination:
-        return JSONResponse(content={"error": "Origin and destination are required."}, status_code=400)
+    if not origin or not destination or not user_id:
+        return JSONResponse(content={"error": "Origin, destination, and user_id are required."}, status_code=400)
     
-    routes = get_accessible_routes(db, origin, destination, mode)
+    routes = get_accessible_routes(db, origin, destination, mode, user_id)
     if routes:
-        return JSONResponse(content={"routes": routes, 'links': {"self": f"/routes?origin={origin}&destination={destination}&mode={mode}", "viewed_routes": f"/viewed_routes/page/1?limit=10"}}, status_code=201)
+        return JSONResponse(content={"routes": routes, 'links': {"self": f"/routes?origin={origin}&destination={destination}&mode={mode}&user_id={user_id}", "viewed_routes": f"/viewed_routes/page/1?limit=10"}}, status_code=201)
     else:
         return JSONResponse(content={"error": "Error retrieving routes."}, status_code=500)
+
+@app.get("/user/{user_id}/routes")
+async def get_user_routes(user_id: int, db: Session = Depends(get_db)):
+    routes = db.query(Route).filter_by(user_id=user_id).all()
     
+    if not routes:
+        return JSONResponse(content={"error": "No routes found for this user."}, status_code=500)
+
+    user_routes = [
+        {
+            "id": route.id,
+            "origin": route.origin,
+            "destination": route.destination,
+            "mode": route.mode,
+            "route_data": json.loads(route.route_data)
+        }
+        for route in routes
+    ]
+
+    return JSONResponse(content={"routes": user_routes}, status_code=201)
 
 if __name__ == '__main__':
     uvicorn.run(app,host='0.0.0.0', port=5000)
