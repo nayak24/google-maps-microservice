@@ -11,14 +11,21 @@ API Root: http://3.145.179.175:5000/
 
 ### Calling Endpoint
 
-Given an origin, destination, and mode of transportation (walking, transit, driving) this API endpoint returns all routes for the input parameters. 
+Given an origin, destination, mode of transportation (walking, transit, driving), and user_id this API endpoint returns all routes for the input parameters. You can also call an endpoint to receive all saved routes for a given user_id.
 
 Example usage:
+To get all saved routes for a user having user_id=1, run: 
+
+```curl http://3.145.179.175:5000/user/1/routes```
+
+To get routes for a given origin/destination, run:
+
 ```
 async function getAccessibleRoutes() {
     const origin = "116th and Broadway, New York, NY";
     const destination = "200 Central Park W, New York, NY";
     const mode = "transit";
+    const user_id = 1;
 
     const url = `http://3.145.179.175:5000/routes`;
 
@@ -31,7 +38,8 @@ async function getAccessibleRoutes() {
             body: JSON.stringify({
                 origin: origin,
                 destination: destination,
-                mode: mode
+                mode: mode,
+                user_id: user_id
             })
         });
 
@@ -59,13 +67,14 @@ curl -X POST http://3.145.179.175:5000/routes \
 -d '{
   "origin": "116th and Broadway, New York, NY",
   "destination": "200 Central Park W, New York, NY",
-  "mode": "transit"
+  "mode": "transit",
+  "user_id": 1
 }'
 ```
 
 Or use a link that contains the origin, destination, and mode of transport like the following:
 
-http://3.145.179.175:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destination=200+Central+Park+W,+New+York,+NY&mode=transit
+http://3.145.179.175:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destination=200+Central+Park+W,+New+York,+NY&mode=transit&user_id=1
 
 or trying to get a paginated page based on the page number and limit, as follows: increase the page number by 1 to get the next page and decrease the limit by 1 to get the previous page and limit.
 
