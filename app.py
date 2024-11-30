@@ -57,8 +57,8 @@ class Route(Base):
 
     __table_args__ = (UniqueConstraint('origin', 'destination', 'mode', 'user_id', name='_origin_destination_user_uc'),)
 
-Base.metadata.drop_all(bind=engine)
-Base.metadata.create_all(bind=engine)
+# Base.metadata.drop_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 def get_db():
     db = SessionLocal()
@@ -141,6 +141,12 @@ def get_place_details(place_id):
 
 # get routes from google directions API and check for accessibility along the way
 def get_accessible_routes(db: Session, origin, destination, mode="walking", user_id=None):
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        new_user = User(id=user_id)
+        db.add(new_user)
+        db.commit()
+
     existing_route = db.query(Route).filter_by(
         origin=origin,
         destination=destination,
