@@ -7,7 +7,7 @@ Author: Anish Nayak (an3270)
 Team: CloudGPT
 
 ## API Usage:
-API Root: http://3.145.179.175:5000/
+API Root: http://18.118.121.175:5000/
 
 ### Calling Endpoint
 
@@ -16,7 +16,7 @@ Given an origin, destination, mode of transportation (walking, transit, driving)
 Example usage:
 To get all saved routes for a user having user_id=1, run: 
 
-```curl http://3.145.179.175:5000/user/1/routes```
+```curl http://18.118.121.175:5000/user/1/routes```
 
 To get routes for a given origin/destination, run:
 
@@ -27,7 +27,7 @@ async function getAccessibleRoutes() {
     const mode = "transit";
     const user_id = 1;
 
-    const url = `http://3.145.179.175:5000/routes`;
+    const url = `http://18.118.121.175:5000/routes`;
 
     try {
         const response = await fetch(url, {
@@ -62,7 +62,7 @@ The routesData.routes array will contain multiple routes, which can be processed
 
 Optionally, you can run a curl command like the following:
 ```
-curl -X POST http://3.145.179.175:5000/routes \
+curl -X POST http://18.118.121.175:5000/routes \
 -H "Content-Type: application/json" \
 -d '{
   "origin": "116th and Broadway, New York, NY",
@@ -74,15 +74,15 @@ curl -X POST http://3.145.179.175:5000/routes \
 
 Or use a link that contains the origin, destination, and mode of transport like the following:
 
-http://3.145.179.175:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destination=200+Central+Park+W,+New+York,+NY&mode=transit&user_id=1
+http://18.118.121.175:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destination=200+Central+Park+W,+New+York,+NY&mode=transit&user_id=1
 
 or trying to get a paginated page based on the page number and limit, as follows: increase the page number by 1 to get the next page and decrease the limit by 1 to get the previous page and limit.
 
-http://3.145.179.175:5000/viewed_routes/page/1?limit=10
+http://18.118.121.175:5000/viewed_routes/page/1?limit=10
 
 or
 
-http://3.145.179.175:5000/viewed_routes/page/1
+http://18.118.121.175:5000/viewed_routes/page/1
 
 
 
