@@ -280,7 +280,7 @@ async def routes_post(data: dict, db: Session = Depends(get_db)):
         return JSONResponse(content={"error": "Error retrieving routes."}, status_code=500)
 
 @app.get("/user/{user_id}/routes")
-async def get_user_routes(user_id: int, db: Session = Depends(get_db)):
+async def get_user_routes(user_id: str, db: Session = Depends(get_db)):
     routes = db.query(Route).filter_by(user_id=user_id).all()
     
     if not routes:
