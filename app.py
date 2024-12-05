@@ -57,8 +57,8 @@ class Route(Base):
 
     __table_args__ = (UniqueConstraint('origin', 'destination', 'mode', 'user_id', name='_origin_destination_user_uc'),)
 
-Base.metadata.drop_all(bind=engine)
-Base.metadata.create_all(bind=engine)
+# Base.metadata.drop_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 def get_db():
     db = SessionLocal()
@@ -253,7 +253,7 @@ def viewed_routes(page: int, limit: int = 10, db: Session = Depends(get_db)):
 
 
 @app.get("/routes")
-async def routes_get(origin: str, destination: str, mode: str = "walking", user_id: int = 0, db: Session = Depends(get_db)):
+async def routes_get(origin: str, destination: str, mode: str = "walking", user_id: str = "1", db: Session = Depends(get_db)):
     if not origin or not destination or not user_id:
         return JSONResponse(content={"error": "Origin, destination, and user_id are required."}, status_code=400)
 
