@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 class User(Base):
     __tablename__ = 'user'
-    id = Column(Integer, primary_key=True)
+    id = Column(String(50), primary_key=True)
     routes = relationship('Route', back_populates='user')
 
 class Route(Base):
@@ -51,14 +51,14 @@ class Route(Base):
     destination = Column(String(256), nullable=False)
     mode = Column(String(50), nullable=False)
     route_data = Column(Text, nullable=False)
-    user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+    user_id = Column(String(50), ForeignKey('user.id'), nullable=False)
 
     user = relationship('User', back_populates='routes')
 
     __table_args__ = (UniqueConstraint('origin', 'destination', 'mode', 'user_id', name='_origin_destination_user_uc'),)
 
-# Base.metadata.drop_all(bind=engine)
-# Base.metadata.create_all(bind=engine)
+Base.metadata.drop_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 def get_db():
     db = SessionLocal()
@@ -298,6 +298,30 @@ async def get_user_routes(user_id: int, db: Session = Depends(get_db)):
     ]
 
     return JSONResponse(content={"routes": user_routes}, status_code=201)
+
+@app.delete("/routes/{route_id}")
+async def delete_route(route_id: int, user_id: str, db: Session = Depends(get_db)):
+    route = db.query(Route).filter_by(id=route_id, user_id=user_id).first()
+
+    if not route:
+        return JSONResponse(
+            content={"error": f"Route with ID {route_id} for User ID {user_id} does not exist."},
+            status_code=500
+        )
+    
+    try:
+        db.delete(route)
+        db.commit()
+        return JSONResponse(
+            content={"message": f"Route with ID {route_id} for User ID {user_id} has been deleted."},
+            status_code=200
+        )
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(
+            content={"error": f"An error occurred while deleting the route: {str(e)}"},
+            status_code=500
+        )
 
 if __name__ == '__main__':
     uvicorn.run(app,host='0.0.0.0', port=5000)
