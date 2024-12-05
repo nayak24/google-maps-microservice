@@ -78,13 +78,14 @@ http://18.118.121.175:5000/routes?origin=116th+and+Broadway,+New+York,+NY&destin
 
 or trying to get a paginated page based on the page number and limit, as follows: increase the page number by 1 to get the next page and decrease the limit by 1 to get the previous page and limit.
 
-http://18.118.121.175:5000/viewed_routes/page/1?limit=10
+[http://18.118.121.175:5000/viewed_routes/page/1?limit=10](http://18.118.121.175:5000/viewed_routes/page/1?limit=10&user_id=1)
 
 or
 
-http://18.118.121.175:5000/viewed_routes/page/1
+http://18.118.121.175:5000/viewed_routes/page/1?user_id=1
 
-
+To delete a saved route given a user_id and route_id, the following endpoint can be called like so:
+```curl -X DELETE "http://18.118.121.175:5000/routes/1?user_id=1"```
 
 ### Example Data
 The route data is organized into legs (info about the overall route) and steps/substeps for each direction in the route. Some steps may optionally have an 'accessible_places' field that shows if a location on the route has some information about accessbility. If a location has this field it will look like this:
