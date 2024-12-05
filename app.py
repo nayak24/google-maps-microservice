@@ -211,26 +211,40 @@ async def log_requests(request: Request, call_next):
 
 
 @app.get("/viewed_routes/page/{page}")
-def viewed_routes(page: int, limit: int = 10, db: Session = Depends(get_db)):
+def viewed_routes(page: int, limit: int = 10, user_id: str = None, db: Session = Depends(get_db)):
+    """
+    Fetches the latest viewed routes for a specific user, paginated.
+    """
     if page < 1:
         return JSONResponse(content={"error": "Invalid page number."}, status_code=400)
 
+    if not user_id:
+        return JSONResponse(content={"error": "user_id is required."}, status_code=400)
+
     offset = (page - 1) * limit
 
-    routes_query = db.query(Route).offset(offset).limit(limit).all()
-    
-    total_items = db.query(Route).count()
+    routes_query = (
+        db.query(Route)
+        .filter(Route.user_id == user_id)
+        .order_by(Route.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    total_items = db.query(Route).filter(Route.user_id == user_id).count()
 
     total_pages = (total_items + limit - 1) // limit
 
     if not routes_query:
-        return JSONResponse({"error": "No routes found."}, status_code=404)
+        return JSONResponse({"error": "No routes found for this user."}, status_code=404)
 
     route_data_res = [
         {
             'id': route.id,
             'origin': route.origin,
             'destination': route.destination,
+            'mode': route.mode
         }
         for route in routes_query
     ]
@@ -241,11 +255,11 @@ def viewed_routes(page: int, limit: int = 10, db: Session = Depends(get_db)):
         'totalPages': total_pages,
         'limit': limit,
         'links': {
-            'self': f'/viewed_routes/page/{page}',
-            'first': f'/viewed_routes/page/1',
-            'last': f'/viewed_routes/page/{total_pages}',
-            'next': f'/viewed_routes/page/{page + 1}' if page < total_pages else None,
-            'prev': f'/viewed_routes/page/{page - 1}' if page > 1 else None
+            'self': f'/viewed_routes/page/{page}?user_id={user_id}&limit={limit}',
+            'first': f'/viewed_routes/page/1?user_id={user_id}&limit={limit}',
+            'last': f'/viewed_routes/page/{total_pages}?user_id={user_id}&limit={limit}' if total_pages > 0 else None,
+            'next': f'/viewed_routes/page/{page + 1}?user_id={user_id}&limit={limit}' if page < total_pages else None,
+            'prev': f'/viewed_routes/page/{page - 1}?user_id={user_id}&limit={limit}' if page > 1 else None
         }
     }
 
