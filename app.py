@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session, sessionmaker, declarative_base, relationship
 from sqlalchemy import create_engine, Column, Integer, String, Text, UniqueConstraint, ForeignKey
+from sqlalchemy.dialects.mysql import LONGTEXT
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -50,15 +51,15 @@ class Route(Base):
     origin = Column(String(256), nullable=False)
     destination = Column(String(256), nullable=False)
     mode = Column(String(50), nullable=False)
-    route_data = Column(Text, nullable=False)
+    route_data = Column(LONGTEXT, nullable=False)
     user_id = Column(String(50), ForeignKey('user.id'), nullable=False)
 
     user = relationship('User', back_populates='routes')
 
     __table_args__ = (UniqueConstraint('origin', 'destination', 'mode', 'user_id', name='_origin_destination_user_uc'),)
 
-# Base.metadata.drop_all(bind=engine)
-# Base.metadata.create_all(bind=engine)
+Base.metadata.drop_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 def get_db():
     db = SessionLocal()
