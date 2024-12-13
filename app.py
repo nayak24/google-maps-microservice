@@ -4,6 +4,7 @@ from sqlalchemy.dialects.mysql import LONGTEXT
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi import BackgroundTasks
 from sqlalchemy_paginator import Paginator
 import requests
 import json
@@ -195,6 +196,54 @@ def get_accessible_routes(db: Session, origin, destination, mode="walking", user
         print(f"Error fetching directions: {e}")
         return None
 
+def process_route_async(task_id: str, origin: str, destination: str, mode: str, user_id: str, db: Session):
+    try:
+        routes = get_accessible_routes(db, origin, destination, mode, user_id)
+        ASYNC_TASK_RESULTS[task_id] = {"status": "completed", "routes": routes}
+    except Exception as e:
+        ASYNC_TASK_RESULTS[task_id] = {"status": "failed", "error": str(e)}
+
+ASYNC_TASK_RESULTS = {}
+
+@app.post("/routes/async")
+async def routes_post_async(data: dict, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    origin = data.get('origin')
+    destination = data.get('destination')
+    mode = data.get('mode', 'walking')
+    user_id = data.get('user_id')
+
+    if not origin or not destination or not user_id:
+        return JSONResponse(content={"error": "Origin, destination, and user_id are required."}, status_code=400)
+
+    task_id = f"task-{int(time.time())}"
+    ASYNC_TASK_RESULTS[task_id] = {"status": "processing"}
+
+    background_tasks.add_task(process_route_async, task_id, origin, destination, mode, user_id, db)
+
+    status_url = f"/routes/async/status/{task_id}"
+    headers = {"Location": status_url}
+    return JSONResponse(
+        content={
+            "message": "Request accepted for processing.",
+            "_links": {
+                "status": status_url
+            }
+        },
+        status_code=202,
+        headers=headers
+    )
+
+@app.get("/routes/async/status/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    Get the status of an asynchronous task.
+    """
+    task_result = ASYNC_TASK_RESULTS.get(task_id)
+    if not task_result:
+        return JSONResponse(content={"error": "Task not found."}, status_code=404)
+
+    return JSONResponse(content=task_result, status_code=200)
+
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
@@ -234,7 +283,6 @@ def viewed_routes(page: int, limit: int = 10, user_id: str = None, db: Session =
     )
 
     total_items = db.query(Route).filter(Route.user_id == user_id).count()
-
     total_pages = (total_items + limit - 1) // limit
 
     if not routes_query:
@@ -245,7 +293,11 @@ def viewed_routes(page: int, limit: int = 10, user_id: str = None, db: Session =
             'id': route.id,
             'origin': route.origin,
             'destination': route.destination,
-            'mode': route.mode
+            'mode': route.mode,
+            '_links': {
+                'self': f'/routes/{route.id}?user_id={user_id}',
+                'delete': f'/routes/{route.id}?user_id={user_id}'
+            }
         }
         for route in routes_query
     ]
@@ -255,7 +307,7 @@ def viewed_routes(page: int, limit: int = 10, user_id: str = None, db: Session =
         'currentPage': page,
         'totalPages': total_pages,
         'limit': limit,
-        'links': {
+        '_links': {
             'self': f'/viewed_routes/page/{page}?user_id={user_id}&limit={limit}',
             'first': f'/viewed_routes/page/1?user_id={user_id}&limit={limit}',
             'last': f'/viewed_routes/page/{total_pages}?user_id={user_id}&limit={limit}' if total_pages > 0 else None,
@@ -274,10 +326,20 @@ async def routes_get(origin: str, destination: str, mode: str = "walking", user_
 
     routes = get_accessible_routes(db, origin, destination, mode, user_id)
     if routes:
-        return JSONResponse(content={"routes": routes, 'links': {"self": f"/routes?origin={origin}&destination={destination}&mode={mode}&user_id={user_id}", "viewed_routes": f"/viewed_routes/page/1?limit=10"}}, status_code=200)
+        return JSONResponse(
+            content={
+                "routes": routes,
+                "_links": {
+                    "self": f"/routes?origin={origin}&destination={destination}&mode={mode}&user_id={user_id}",
+                    "viewed_routes": f"/viewed_routes/page/1?user_id={user_id}&limit=10",
+                }
+            },
+            status_code=200
+        )
     else:
         return JSONResponse(content={"error": "Error retrieving routes."}, status_code=500)
-    
+
+
 @app.post("/routes")
 async def routes_post(data: dict, db: Session = Depends(get_db)):
     origin = data.get('origin')
@@ -287,10 +349,22 @@ async def routes_post(data: dict, db: Session = Depends(get_db)):
 
     if not origin or not destination or not user_id:
         return JSONResponse(content={"error": "Origin, destination, and user_id are required."}, status_code=400)
-    
+
     routes = get_accessible_routes(db, origin, destination, mode, user_id)
     if routes:
-        return JSONResponse(content={"routes": routes, 'links': {"self": f"/routes?origin={origin}&destination={destination}&mode={mode}&user_id={user_id}", "viewed_routes": f"/viewed_routes/page/1?limit=10"}}, status_code=201)
+        resource_url = f"/routes?origin={origin}&destination={destination}&mode={mode}&user_id={user_id}"
+        headers = {"Location": resource_url, "Link": f'<{resource_url}>; rel="self"'}
+        return JSONResponse(
+            content={
+                "routes": routes,
+                "_links": {
+                    "self": resource_url,
+                    "viewed_routes": f"/viewed_routes/page/1?user_id={user_id}&limit=10",
+                }
+            },
+            status_code=201,
+            headers=headers
+        )
     else:
         return JSONResponse(content={"error": "Error retrieving routes."}, status_code=500)
 
@@ -312,7 +386,7 @@ async def get_user_routes(user_id: str, db: Session = Depends(get_db)):
         for route in routes
     ]
 
-    return JSONResponse(content={"routes": user_routes}, status_code=201)
+    return JSONResponse(content={"routes": user_routes}, status_code=200)
 
 @app.delete("/routes/{route_id}")
 async def delete_route(route_id: int, user_id: str, db: Session = Depends(get_db)):
@@ -321,14 +395,20 @@ async def delete_route(route_id: int, user_id: str, db: Session = Depends(get_db
     if not route:
         return JSONResponse(
             content={"error": f"Route with ID {route_id} for User ID {user_id} does not exist."},
-            status_code=500
+            status_code=404
         )
-    
+
     try:
         db.delete(route)
         db.commit()
         return JSONResponse(
-            content={"message": f"Route with ID {route_id} for User ID {user_id} has been deleted."},
+            content={
+                "message": f"Route with ID {route_id} for User ID {user_id} has been deleted.",
+                "_links": {
+                    "viewed_routes": f"/viewed_routes/page/1?user_id={user_id}&limit=10",
+                    "create_route": f"/routes"
+                }
+            },
             status_code=200
         )
     except Exception as e:

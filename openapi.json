@@ -1,0 +1,282 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Accessible Routes Microservice",
+      "version": "1.0.0",
+      "description": "A microservice that retrieves accessible routes, stores user-specific route data, and supports asynchronous operations."
+    },
+    "servers": [
+      {
+        "url": "http://localhost:5000",
+        "description": "Local development server"
+      }
+    ],
+    "paths": {
+      "/": {
+        "get": {
+          "summary": "Welcome Endpoint",
+          "description": "Returns a simple welcome message.",
+          "responses": {
+            "200": {
+              "description": "Welcome message",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "Hello": {
+                        "type": "string",
+                        "example": "World"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/routes": {
+        "get": {
+          "summary": "Get Accessible Routes",
+          "description": "Retrieve accessible routes for a given origin, destination, and user.",
+          "parameters": [
+            {
+              "name": "origin",
+              "in": "query",
+              "required": true,
+              "schema": { "type": "string" },
+              "description": "Origin address or location."
+            },
+            {
+              "name": "destination",
+              "in": "query",
+              "required": true,
+              "schema": { "type": "string" },
+              "description": "Destination address or location."
+            },
+            {
+              "name": "mode",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "default": "walking",
+                "enum": ["walking", "transit", "driving", "bicycling"]
+              },
+              "description": "Mode of transportation."
+            },
+            {
+              "name": "user_id",
+              "in": "query",
+              "required": true,
+              "schema": { "type": "string" },
+              "description": "The user ID requesting the routes."
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successfully retrieved routes.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "routes": { "type": "array", "items": { "type": "object" } },
+                      "_links": {
+                        "type": "object",
+                        "properties": {
+                          "self": { "type": "string", "example": "/routes?origin=Columbia&destination=JFK&mode=transit&user_id=1" },
+                          "viewed_routes": { "type": "string", "example": "/viewed_routes/page/1?user_id=1&limit=10" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": { "description": "Bad request. Missing required parameters." },
+            "500": { "description": "Internal server error." }
+          }
+        },
+        "post": {
+          "summary": "Create Accessible Routes",
+          "description": "Store accessible routes for a user and return the created routes.",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "origin": { "type": "string", "example": "Columbia University" },
+                    "destination": { "type": "string", "example": "JFK Airport" },
+                    "mode": { "type": "string", "default": "walking", "enum": ["walking", "transit", "driving", "bicycling"] },
+                    "user_id": { "type": "string", "example": "123" }
+                  }
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Successfully created routes.",
+              "headers": {
+                "Location": {
+                  "description": "URL of the created resource.",
+                  "schema": { "type": "string", "example": "/routes?origin=Columbia&destination=JFK&mode=transit&user_id=1" }
+                }
+              },
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "routes": { "type": "array", "items": { "type": "object" } },
+                      "_links": {
+                        "type": "object",
+                        "properties": {
+                          "self": { "type": "string", "example": "/routes?origin=Columbia&destination=JFK&mode=transit&user_id=1" },
+                          "viewed_routes": { "type": "string", "example": "/viewed_routes/page/1?user_id=1&limit=10" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": { "description": "Bad request. Missing required fields." },
+            "500": { "description": "Internal server error." }
+          }
+        }
+      },
+      "/routes/async": {
+        "post": {
+          "summary": "Create Accessible Routes (Async)",
+          "description": "Initiates an asynchronous operation to create accessible routes.",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "origin": { "type": "string", "example": "Columbia University" },
+                    "destination": { "type": "string", "example": "JFK Airport" },
+                    "mode": { "type": "string", "default": "walking", "enum": ["walking", "transit", "driving", "bicycling"] },
+                    "user_id": { "type": "string", "example": "123" }
+                  }
+                }
+              }
+            }
+          },
+          "responses": {
+            "202": {
+              "description": "Request accepted for asynchronous processing.",
+              "headers": {
+                "Location": {
+                  "description": "URL to track the status of the asynchronous task.",
+                  "schema": { "type": "string", "example": "/routes/async/status/task-1234567890" }
+                }
+              },
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Request accepted for processing." },
+                      "_links": {
+                        "type": "object",
+                        "properties": {
+                          "status": { "type": "string", "example": "/routes/async/status/task-1234567890" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/routes/async/status/{task_id}": {
+        "get": {
+          "summary": "Get Async Task Status",
+          "description": "Retrieve the status of an asynchronous task.",
+          "parameters": [
+            {
+              "name": "task_id",
+              "in": "path",
+              "required": true,
+              "schema": { "type": "string" },
+              "description": "The unique task ID."
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Task status retrieved successfully.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "status": { "type": "string", "example": "completed" },
+                      "routes": { "type": "array", "items": { "type": "object" } }
+                    }
+                  }
+                }
+              }
+            },
+            "404": { "description": "Task not found." }
+          }
+        }
+      },
+      "/routes/{route_id}": {
+        "delete": {
+          "summary": "Delete a Route",
+          "description": "Deletes a specific route by route ID and user ID.",
+          "parameters": [
+            {
+              "name": "route_id",
+              "in": "path",
+              "required": true,
+              "schema": { "type": "integer" },
+              "description": "The ID of the route to delete."
+            },
+            {
+              "name": "user_id",
+              "in": "query",
+              "required": true,
+              "schema": { "type": "string" },
+              "description": "The user ID associated with the route."
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Route deleted successfully.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Route deleted successfully." },
+                      "_links": {
+                        "type": "object",
+                        "properties": {
+                          "viewed_routes": { "type": "string", "example": "/viewed_routes/page/1?user_id=1&limit=10" },
+                          "create_route": { "type": "string", "example": "/routes" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "404": { "description": "Route not found." },
+            "500": { "description": "Internal server error." }
+          }
+        }
+      }
+    }
+  }
+  
